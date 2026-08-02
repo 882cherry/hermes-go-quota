@@ -1,4 +1,4 @@
-# opencode-go-quota
+# hermes-go-quota
 
 Append your **OpenCode Go** quota (5h rolling / weekly / monthly) to every
 final assistant reply in [Hermes Agent](https://github.com/NousResearch/hermes-agent) —
@@ -34,7 +34,7 @@ Both are stdlib-only (no pip dependencies).
 
 ```bash
 # 1. Clone into Hermes' user plugin directory
-git clone https://github.com/<you>/opencode-go-quota ~/.hermes/plugins/opencode-go-quota
+git clone https://github.com/882cherry/hermes-go-quota ~/.hermes/plugins/opencode-go-quota
 
 # 2. Enable it
 hermes plugins enable opencode-go-quota
