@@ -24,7 +24,7 @@ import os
 from pathlib import Path
 from typing import Any, Optional
 
-PLUGIN_VERSION = "1.0.0"
+PLUGIN_VERSION = "0.1.0"
 
 # Optional: force quota line even when provider detection disagrees.
 # Set "always" to always append, "auto" (default) to follow Hermes model config.
