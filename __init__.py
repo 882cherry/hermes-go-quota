@@ -57,8 +57,19 @@ def _is_opencode_go_active() -> bool:
 
 def _quota_line() -> str:
     try:
-        from .quota import fetch_quota_line
+        from .quota import fetch_quota_line  # 包上下文(插件管理器)
+    except ImportError:
+        try:
+            import sys
+            from pathlib import Path
 
+            _plug_dir = str(Path(__file__).resolve().parent)
+            if _plug_dir not in sys.path:
+                sys.path.insert(0, _plug_dir)
+            from quota import fetch_quota_line  # 独立加载(测试/调试)
+        except Exception:
+            return ""
+    try:
         return fetch_quota_line()
     except Exception:
         return ""
