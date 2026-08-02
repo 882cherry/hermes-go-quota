@@ -49,7 +49,7 @@ def _usage_patterns(key: str) -> tuple[re.Pattern, re.Pattern]:
 RE_PLAN = re.compile(r'plan:\s*\$R\[\d+\]\s*=\s*"([^"]+)"')
 
 
-def _http_get(url: str, cookie: str, referer: str | None = None) -> str:
+def _http_get(url: str, cookie: str, referer: str | None = None, extra_headers: dict | None = None) -> str:
     headers = {
         "User-Agent": USER_AGENT,
         "Cookie": f"auth={cookie}",
@@ -57,6 +57,8 @@ def _http_get(url: str, cookie: str, referer: str | None = None) -> str:
     }
     if referer:
         headers["Referer"] = referer
+    if extra_headers:
+        headers.update(extra_headers)
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
         return resp.read(MAX_BYTES).decode("utf-8", errors="replace")
@@ -91,8 +93,15 @@ def resolve_workspace_id(cookie: str, hint: str = "") -> str:
     if resolved:
         return resolved
     url = f"https://opencode.ai/_server?id={WORKSPACE_SERVER_ID}"
+    # _server 需要 X-Server-Id 头,否则返回 500
+    server_headers = {
+        "X-Server-Id": WORKSPACE_SERVER_ID,
+        "X-Server-Instance": f"server-fn:{int(time.time() * 1e9)}",
+        "Origin": "https://opencode.ai",
+        "Accept": "text/javascript, application/json;q=0.9, */*;q=0.8",
+    }
     try:
-        text = _http_get(url, cookie, referer="https://opencode.ai")
+        text = _http_get(url, cookie, referer="https://opencode.ai", extra_headers=server_headers)
     except Exception:
         return ""
     for ws_id, name in RE_WORKSPACE_ENTRY.findall(text):
@@ -161,6 +170,9 @@ def fetch_quota_line(*, refresh: bool = False) -> str:
     cookie = (cfg.get("auth_cookie") or "").strip()
     if not cookie:
         return ""
+    # 容错:允许粘贴 "auth=Fe26...." 或完整 Cookie 头
+    if cookie.lower().startswith("auth="):
+        cookie = cookie[5:].strip()
     if not cookie.startswith("Fe26.") and ";" in cookie:
         for part in cookie.split(";"):
             part = part.strip()
@@ -192,4 +204,10 @@ def fetch_quota_line(*, refresh: bool = False) -> str:
 
 
 if __name__ == "__main__":
-    print(fetch_quota_line(refresh="--refresh" in __import__("sys").argv))
+    import sys as _sys
+
+    _line = fetch_quota_line(refresh="--refresh" in _sys.argv)
+    if _line:
+        print(_line)
+        _sys.exit(0)
+    _sys.exit(1)
