@@ -1,0 +1,103 @@
+--- a/gateway/runtime_footer.py	2026-08-02 09:34:40.439379993 +0800
++++ b/gateway/runtime_footer.py	2026-08-02 09:37:38.228023114 +0800
+@@ -26,11 +26,17 @@
+ from __future__ import annotations
+ 
+ import os
++import subprocess
++import sys
+ from typing import Any, Iterable, Optional
+ 
+ _DEFAULT_FIELDS: tuple[str, ...] = ("model", "context_pct", "cwd")
+ _SEP = " · "
+ 
++# "opencode_go" field: append the OpenCode Go quota line under the footer.
++_OPENCODE_GO_FIELD = "opencode_go"
++_OPENCODE_GO_SCRIPT = None  # lazy-resolved
++
+ 
+ def _home_relative_cwd(cwd: str) -> str:
+     """Return *cwd* with ``$HOME`` collapsed to ``~``.  Empty string if unset."""
+@@ -53,6 +59,51 @@
+     return model.rsplit("/", 1)[-1]
+ 
+ 
++def _opencode_go_script_path():
++    global _OPENCODE_GO_SCRIPT
++    if _OPENCODE_GO_SCRIPT is not None:
++        return _OPENCODE_GO_SCRIPT
++    home = os.environ.get("HERMES_HOME") or os.path.expanduser("~/.hermes")
++    candidates = [
++        os.path.join(home, "scripts", "opencode_go_quota.py"),
++        os.path.expanduser("~/.hermes/scripts/opencode_go_quota.py"),
++    ]
++    for c in candidates:
++        if os.path.exists(c):
++            _OPENCODE_GO_SCRIPT = c
++            return c
++    _OPENCODE_GO_SCRIPT = ""
++    return None
++
++
++def _is_opencode_go_provider(user_config):
++    model_cfg = ((user_config or {}).get("model") or {})
++    provider = str(model_cfg.get("provider") or "").lower()
++    base_url = str(model_cfg.get("base_url") or "").lower()
++    return provider == "opencode-go" or "opencode.ai/zen/go" in base_url
++
++
++def _opencode_go_quota_line():
++    script = _opencode_go_script_path()
++    if not script:
++        return ""
++    try:
++        env = dict(os.environ)
++        if "HERMES_HOME" not in env:
++            env["HERMES_HOME"] = os.path.expanduser("~/.hermes")
++        proc = subprocess.run(
++            [sys.executable, script],
++            capture_output=True,
++            text=True,
++            timeout=6,
++            env=env,
++        )
++        line = (proc.stdout or "").strip()
++        return line if proc.returncode == 0 and line else ""
++    except Exception:
++        return ""
++
++
+ def resolve_footer_config(
+     user_config: dict[str, Any] | None,
+     platform_key: str | None = None,
+@@ -103,6 +154,9 @@
+     """
+     parts: list[str] = []
+     for field in fields:
++        if field == _OPENCODE_GO_FIELD:
++            # Handled by build_footer_line (needs IO to call the script).
++            continue
+         if field == "model":
+             m = _model_short(model)
+             if m:
+@@ -140,10 +194,18 @@
+     cfg = resolve_footer_config(user_config, platform_key)
+     if not cfg.get("enabled"):
+         return ""
+-    return format_runtime_footer(
++    fields = cfg.get("fields") or _DEFAULT_FIELDS
++    line = format_runtime_footer(
+         model=model,
+         context_tokens=context_tokens,
+         context_length=context_length,
+         cwd=cwd,
+-        fields=cfg.get("fields") or _DEFAULT_FIELDS,
++        fields=fields,
+     )
++    # OpenCode Go quota line: only when the field is enabled AND the active
++    # provider is opencode-go.
++    if _OPENCODE_GO_FIELD in fields and _is_opencode_go_provider(user_config):
++        quota_line = _opencode_go_quota_line()
++        if quota_line:
++            line = f"{line}\n{quota_line}" if line else quota_line
++    return line

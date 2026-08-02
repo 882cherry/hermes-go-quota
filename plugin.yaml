@@ -1,0 +1,6 @@
+name: opencode-go-quota
+version: 1.0.0
+description: "Append OpenCode Go quota (5h rolling / weekly / monthly) to every final reply when the active provider is opencode-go. Zero core changes — uses the transform_llm_output hook."
+author: "红豆泥"
+hooks:
+  - transform_llm_output

@@ -1,0 +1,6 @@
+# Secrets / local state — never commit these
+opencode_go_quota.json
+config.json
+__pycache__/
+*.pyc
+.venv/
